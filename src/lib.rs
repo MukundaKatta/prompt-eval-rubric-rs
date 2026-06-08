@@ -100,14 +100,12 @@ impl Rubric {
 
     /// Evaluate this rubric against `output`. Exceptions produce 0.0.
     pub fn evaluate(&self, output: &str, context: Option<&Value>) -> Score {
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            match &self.inner {
-                Inner::Simple(f) => {
-                    let v = f(output, context);
-                    (v, None)
-                }
-                Inner::WithReason(f) => f(output, context),
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match &self.inner {
+            Inner::Simple(f) => {
+                let v = f(output, context);
+                (v, None)
             }
+            Inner::WithReason(f) => f(output, context),
         }));
         match result {
             Ok((v, r)) => Score {
@@ -123,7 +121,11 @@ impl Rubric {
                 } else {
                     "panic in rubric scorer".to_owned()
                 };
-                Score { name: self.name.clone(), value: 0.0, reason: Some(msg) }
+                Score {
+                    name: self.name.clone(),
+                    value: 0.0,
+                    reason: Some(msg),
+                }
             }
         }
     }
@@ -217,12 +219,19 @@ impl RubricSet {
                 / total_weight
         };
 
-        Report { scores, overall: clip01(overall) }
+        Report {
+            scores,
+            overall: clip01(overall),
+        }
     }
 }
 
 fn clip01(v: f64) -> f64 {
-    if v.is_nan() { 0.0 } else { v.clamp(0.0, 1.0) }
+    if v.is_nan() {
+        0.0
+    } else {
+        v.clamp(0.0, 1.0)
+    }
 }
 
 // ---- tests ----------------------------------------------------------------
@@ -286,7 +295,12 @@ mod tests {
 
     #[test]
     fn rubric_set_uniform_overall() {
-        let set = RubricSet::uniform(vec![rubric("r1", 1.0), rubric("r2", 0.5), rubric("r3", 0.0)]).unwrap();
+        let set = RubricSet::uniform(vec![
+            rubric("r1", 1.0),
+            rubric("r2", 0.5),
+            rubric("r3", 0.0),
+        ])
+        .unwrap();
         let r = set.evaluate("x", None);
         // (1.0 + 0.5 + 0.0) / 3 = 0.5
         assert!((r.overall - 0.5).abs() < 1e-9);
@@ -307,7 +321,8 @@ mod tests {
         let set = RubricSet::uniform(vec![
             Rubric::new("alpha", |_, _| 0.9),
             Rubric::new("beta", |_, _| 0.3),
-        ]).unwrap();
+        ])
+        .unwrap();
         let r = set.evaluate("test", None);
         let alpha = r.by_name("alpha").unwrap();
         assert_eq!(alpha.value, 0.9);
@@ -340,7 +355,11 @@ mod tests {
     #[test]
     fn rubric_receives_context() {
         let r = Rubric::new("ctx_check", |_out, ctx| {
-            if ctx.and_then(|c| c.as_str()) == Some("expected") { 1.0 } else { 0.0 }
+            if ctx.and_then(|c| c.as_str()) == Some("expected") {
+                1.0
+            } else {
+                0.0
+            }
         });
         let s = r.evaluate("anything", Some(&json!("expected")));
         assert_eq!(s.value, 1.0);
@@ -373,7 +392,8 @@ mod tests {
             Rubric::new("r1", |_, _| 1.0),
             Rubric::new("r2", |_, _| 0.5),
             Rubric::new("r3", |_, _| 0.0),
-        ]).unwrap();
+        ])
+        .unwrap();
         let r = set.evaluate("x", None);
         assert_eq!(r.scores.len(), 3);
     }
@@ -383,7 +403,8 @@ mod tests {
         let set = RubricSet::uniform(vec![
             Rubric::new("alpha", |_, _| 1.0),
             Rubric::new("beta", |_, _| 0.0),
-        ]).unwrap();
+        ])
+        .unwrap();
         let names = set.rubric_names();
         assert_eq!(names, vec!["alpha", "beta"]);
     }
